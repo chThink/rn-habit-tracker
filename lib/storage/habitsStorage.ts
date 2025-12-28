@@ -1,13 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import { Habit } from './types';
 const HABITS_STORAGE_KEY = '@myhabits:habits';
 
-export type Habit = {
-  id: string;
-  title: string;
-  createdAt?: string;
-  completed: boolean;
-};
 
 // =========== CRUD FUNCTIONS ===========
 
@@ -141,7 +135,6 @@ export async function deleteHabit(id: string): Promise<boolean> {
   }
 }
 
-// No arquivo '@/storage/habitsStorage.ts'
 export async function editHabit(id: string, newTitle: string): Promise<boolean> {
   try {
     console.log('✏️ Editando hábito ID:', id, 'Novo título:', newTitle);
