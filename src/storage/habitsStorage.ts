@@ -6,67 +6,8 @@ export type Habit = {
   id: string;
   title: string;
   createdAt?: string;
+  completed: boolean;
 };
-
-// =========== DEBUG FUNCTIONS ===========
-
-/**
- * Mostra todas as chaves do AsyncStorage
- */
-export async function debugShowAllKeys() {
-  try {
-    const keys = await AsyncStorage.getAllKeys();
-    console.log('🔑 TODAS AS CHAVES NO ASYNCSTORAGE:', keys);
-    
-    for (const key of keys) {
-      const value = await AsyncStorage.getItem(key);
-      console.log(`📄 Chave: ${key}, Valor: ${value}`);
-    }
-  } catch (error) {
-    console.error('❌ Erro ao mostrar chaves:', error);
-  }
-}
-
-/**
- * Mostra o conteúdo atual da chave de hábitos
- */
-export async function debugShowHabits() {
-  try {
-    const data = await AsyncStorage.getItem(HABITS_STORAGE_KEY);
-    console.log('📊 CONTEÚDO ATUAL DA CHAVE DE HÁBITOS:');
-    console.log('Chave:', HABITS_STORAGE_KEY);
-    console.log('Valor:', data);
-    console.log('Tipo:', typeof data);
-    
-    if (data) {
-      const parsed = JSON.parse(data);
-      console.log('Parseado:', parsed);
-      console.log('É array?', Array.isArray(parsed));
-      console.log('Tamanho:', Array.isArray(parsed) ? parsed.length : 'N/A');
-    }
-  } catch (error) {
-    console.error('❌ Erro ao mostrar hábitos:', error);
-  }
-}
-
-/**
- * Limpa APENAS a chave de hábitos
- */
-export async function clearAllHabits(): Promise<boolean> {
-  try {
-    console.log('🧹 LIMPANDO CHAVE:', HABITS_STORAGE_KEY);
-    await AsyncStorage.removeItem(HABITS_STORAGE_KEY);
-    
-    // Verificar se realmente foi removido
-    const check = await AsyncStorage.getItem(HABITS_STORAGE_KEY);
-    console.log('✅ Verificação pós-limpeza:', check === null ? 'SUCESSO - Chave removida' : 'FALHA - Chave ainda existe');
-    
-    return true;
-  } catch (error) {
-    console.error('❌ Erro ao limpar hábitos:', error);
-    return false;
-  }
-}
 
 // =========== CRUD FUNCTIONS ===========
 
@@ -130,6 +71,7 @@ export async function addHabit(title: string): Promise<Habit | null> {
       id: `habit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       title: title.trim(),
       createdAt: new Date().toISOString(),
+      completed: false,
     };
     
     console.log('➕ ADD_HABIT - Novo hábito:', newHabit);
@@ -195,6 +137,67 @@ export async function deleteHabit(id: string): Promise<boolean> {
     }
   } catch (error) {
     console.error('❌ ERRO em deleteHabit:', error);
+    return false;
+  }
+}
+
+// No arquivo '@/storage/habitsStorage.ts'
+export async function editHabit(id: string, newTitle: string): Promise<boolean> {
+  try {
+    console.log('✏️ Editando hábito ID:', id, 'Novo título:', newTitle);
+    
+    const storedHabits = await getHabits();
+    console.log('📋 Hábitos antes da edição:', storedHabits);
+    
+    const habitIndex = storedHabits.findIndex(habit => habit.id === id);
+    
+    if (habitIndex === -1) {
+      console.error('❌ Hábito não encontrado para edição');
+      return false;
+    }
+    
+    // Atualizar o hábito
+    storedHabits[habitIndex] = {
+      ...storedHabits[habitIndex],
+      title: newTitle
+    };
+    
+    // Salvar de volta
+    await AsyncStorage.setItem(HABITS_STORAGE_KEY, JSON.stringify(storedHabits));
+    console.log('✅ Hábito editado com sucesso:', storedHabits[habitIndex]);
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Erro ao editar hábito:', error);
+    return false;
+  }
+}
+
+export async function toggleHabitCompletion(id: string): Promise<boolean> {
+  try {
+    console.log('🔘 Alternando completude do hábito ID:', id);
+    
+    const storedHabits = await getHabits();
+    const habitIndex = storedHabits.findIndex(habit => habit.id === id);
+    
+    if (habitIndex === -1) {
+      console.error('❌ Hábito não encontrado');
+      return false;
+    }
+    
+    // Alternar o estado de completude
+    storedHabits[habitIndex] = {
+      ...storedHabits[habitIndex],
+      completed: !storedHabits[habitIndex].completed
+    };
+    
+    // Salvar de volta
+    await AsyncStorage.setItem(HABITS_STORAGE_KEY, JSON.stringify(storedHabits));
+    console.log('✅ Estado do hábito alternado:', storedHabits[habitIndex]);
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Erro ao alternar hábito:', error);
     return false;
   }
 }

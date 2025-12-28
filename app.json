@@ -7,9 +7,11 @@
     "icon": "./assets/images/icon.png",
     "scheme": "rnhabittracker",
     "userInterfaceStyle": "automatic",
+    "private": true,
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.rnhabittracker"
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +21,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.rnhabittracker"
     },
     "web": {
       "output": "static",

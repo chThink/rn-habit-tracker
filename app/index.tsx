@@ -1,8 +1,9 @@
 import {
   addHabit,
-  clearAllHabits,
   deleteHabit,
-  getHabits
+  editHabit,
+  getHabits,
+  toggleHabitCompletion // Adicione esta função no storage
 } from '@/storage/habitsStorage';
 import { useEffect, useState } from 'react';
 import {
@@ -21,25 +22,26 @@ import Modal from 'react-native-modal';
 type Habit = {
   id: string;
   title: string;
+  completed: boolean; // Adicionado campo para controle de completude
 };
 
 export default function HomeScreen() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isModalEditVisible, setIsModalEditVisible] = useState(false);
   const [habitName, setHabitName] = useState('');
   const [loading, setLoading] = useState(true);
-  const [debugInfo, setDebugInfo] = useState<string>('');
+  const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
 
   useEffect(() => {
     console.log('🚀 HomeScreen montado');
     loadHabits();
-    //showDebugInfo();
   }, []);
 
   async function loadHabits() {
     console.log('🔄 Carregando hábitos...');
     setLoading(true);
-    try {
+    try {   
       const storedHabits = await getHabits();
       console.log('📋 Hábitos carregados no state:', storedHabits);
       setHabits(storedHabits);
@@ -51,45 +53,49 @@ export default function HomeScreen() {
     }
   }
 
-/*   async function showDebugInfo() {
-    await debugShowAllKeys();
-    await debugShowHabits();
-    
-    // Atualizar info de debug
-    const habitsCount = habits.length;
-    setDebugInfo(`Hábitos no state: ${habitsCount}`);
-  }
- */
   async function handleAddHabit() {
-    if (!habitName.trim()) {
-      Alert.alert('Atenção', 'Digite um nome para o hábito');
-      return;
-    }
-
     console.log('➕ Adicionando hábito:', habitName);
     
     const newHabit = await addHabit(habitName);
     
     if (newHabit) {
       console.log('✅ Hábito adicionado com sucesso:', newHabit);
-      // Recarregar do storage para garantir sincronia
       await loadHabits();
       setIsModalVisible(false);
       setHabitName('');
-      Alert.alert('Sucesso', 'Hábito adicionado!');
-     // showDebugInfo();
     } else {
       console.error('❌ Falha ao adicionar hábito');
       Alert.alert('Erro', 'Não foi possível adicionar o hábito');
     }
   }
 
+  async function handleToggleHabit(id: string) {
+    console.log('🔘 Alternando hábito ID:', id);
+    
+    const habitToToggle = habits.find(h => h.id === id);
+    if (!habitToToggle) return;
+    
+    try {
+      const updated = await toggleHabitCompletion(id);
+      
+      if (updated) {
+        // Atualizar state local
+        const updatedHabits = habits.map(habit => 
+          habit.id === id 
+            ? { ...habit, completed: !habit.completed }
+            : habit
+        );
+        setHabits(updatedHabits);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao alternar hábito:', error);
+    }
+  }
+
   async function handleDeleteHabit(id: string) {
     console.log('🔄 Iniciando exclusão do ID:', id);
-    console.log('📊 Hábitos no state antes:', habits);
     
     const habitToDelete = habits.find(h => h.id === id);
-    console.log('🎯 Hábito a ser excluído:', habitToDelete);
     
     if (!habitToDelete) {
       Alert.alert('Erro', 'Hábito não encontrado para exclusão');
@@ -109,7 +115,6 @@ export default function HomeScreen() {
           text: 'Excluir',
           style: 'destructive',
           onPress: async () => {
-            console.log('✅ Usuário confirmou exclusão');
             await confirmDeleteHabit(id);
           }
         },
@@ -121,85 +126,87 @@ export default function HomeScreen() {
     console.log('🔴 Confirmando exclusão do ID:', id);
     
     try {
-      console.log('1️⃣ Chamando deleteHabit...');
       const deleted = await deleteHabit(id);
-      console.log('2️⃣ Resultado do deleteHabit:', deleted);
       
       if (deleted) {
-        console.log('3️⃣ Atualizando state local...');
-        // Atualizar state local
         const updatedHabits = habits.filter(h => h.id !== id);
         setHabits(updatedHabits);
-        console.log('4️⃣ State atualizado:', updatedHabits);
-        
         Alert.alert('Sucesso', 'Hábito excluído!');
       } else {
         Alert.alert('Erro', 'Falha ao excluir hábito');
       }
-      
-      // Mostrar debug info
-      //await showDebugInfo();
-      
     } catch (error) {
       console.error('❌ Erro na exclusão:', error);
       Alert.alert('Erro', 'Ocorreu um erro ao excluir');
     }
   }
 
-  async function handleClearAll() {
-    console.log('🧹 Iniciando limpeza total...');
+  function handleEditHabit(id: string) {
+    console.log('✏️ Iniciando edição do hábito ID:', id);
     
-    Alert.alert(
-      'Limpar Tudo',
-      'Isso removerá TODOS os hábitos. Tem certeza?',
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-          onPress: () => console.log('❌ Limpeza cancelada')
-        },
-        {
-          text: 'Limpar Tudo',
-          style: 'destructive',
-          onPress: async () => {
-            console.log('✅ Confirmada limpeza total');
-            
-            const cleared = await clearAllHabits();
-            console.log('🧹 Resultado da limpeza:', cleared);
-            
-            if (cleared) {
-              console.log('✅ Limpeza bem sucedida');
-              setHabits([]);
-              Alert.alert('Sucesso', 'Todos os hábitos foram removidos');
-              // sshowDebugInfo();
-            } else {
-              Alert.alert('Erro', 'Não foi possível limpar os hábitos');
-            }
-          }
-        }
-      ]
-    );
+    const habitToEdit = habits.find(h => h.id === id);
+    if (habitToEdit) {
+      console.log('📝 Hábito encontrado para edição:', habitToEdit);
+      setEditingHabitId(id);
+      setHabitName(habitToEdit.title);
+      setIsModalEditVisible(true);
+    } else {
+      console.error('❌ Hábito não encontrado para edição');
+      Alert.alert('Erro', 'Hábito não encontrado para edição');
+    }
   }
 
-/*   // Função de teste para adicionar hábitos de exemplo
-  async function addTestHabits() {
-    console.log('🧪 Adicionando hábitos de teste...');
-    
-    const testHabits = [
-      'Beber água',
-      'Exercitar',
-      'Estudar React Native',
-      'Ler um livro',
-      'Meditar'
-    ];
-    
-    for (const habit of testHabits) {
-      await addHabit(habit);
+  async function handleSaveEdit() {
+    if (!editingHabitId || !habitName.trim()) {
+      Alert.alert('Erro', 'Preencha o nome do hábito');
+      return;
     }
-    
-    await loadHabits();
-    Alert.alert('Teste', '5 hábitos de teste adicionados');
-  } */
+
+    console.log('💾 Salvando edição do hábito ID:', editingHabitId);
+    console.log('📝 Novo nome:', habitName);
+
+    try {
+      const updated = await editHabit(editingHabitId, habitName);
+      
+      if (updated) {
+        console.log('✅ Hábito editado com sucesso');
+        
+        const updatedHabits = habits.map(habit => 
+          habit.id === editingHabitId 
+            ? { ...habit, title: habitName }
+            : habit
+        );
+        setHabits(updatedHabits);
+        
+        setEditingHabitId(null);
+        setHabitName('');
+        setIsModalEditVisible(false);
+        
+        Alert.alert('Sucesso', 'Hábito atualizado!');
+      } else {
+        Alert.alert('Erro', 'Falha ao editar hábito');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao editar hábito:', error);
+      Alert.alert('Erro', 'Ocorreu um erro ao editar o hábito');
+    }
+  }
+
+  function closeEditModal() {
+    setEditingHabitId(null);
+    setHabitName('');
+    setIsModalEditVisible(false);
+  }
+
+  function closeAddModal() {
+    setHabitName('');
+    setIsModalVisible(false);
+  }
+
+  // Função para formatar data (opcional, para mostrar quando foi completado)
+  function formatDate(date: Date) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
 
   if (loading) {
     return (
@@ -214,35 +221,13 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Meus Hábitos</Text>
-        <Text style={styles.counter}>{habits.length} hábitos</Text>
-      </View>
-
-{/*       <View style={styles.debugContainer}>
-        <Text style={styles.debugText}>{debugInfo}</Text>
-        <View style={styles.debugButtons}>
-          <TouchableOpacity 
-            style={[styles.debugButton, { backgroundColor: '#4CAF50' }]}
-            onPress={showDebugInfo}
-          >
-            <Text style={styles.debugButtonText}>Debug</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.debugButton, { backgroundColor: '#2196F3' }]}
-            onPress={addTestHabits}
-          >
-            <Text style={styles.debugButtonText}>Teste</Text>
-          </TouchableOpacity> 
-           <TouchableOpacity 
-            style={[styles.debugButton, { backgroundColor: '#FF9800' }]}
-            onPress={handleClearAll}
-          >
-            <Text style={styles.debugButtonText}>Limpar</Text>
-          </TouchableOpacity>
-
-
+        <View style={styles.counterContainer}>
+          <Text style={styles.counter}>{habits.length} hábitos</Text>
+          <Text style={styles.completedCounter}>
+            {habits.filter(h => h.completed).length} completados
+          </Text>
         </View>
-      
-      </View> */}
+      </View>
 
       <Button 
         title="+ Adicionar Hábito" 
@@ -268,27 +253,72 @@ export default function HomeScreen() {
           data={habits}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <View style={styles.habitItemContainer}>
+            <TouchableOpacity 
+              style={[
+                styles.habitItemContainer,
+                item.completed && styles.habitItemCompleted
+              ]}
+              onPress={() => handleToggleHabit(item.id)}
+              activeOpacity={0.7}
+            >
+              {/* Radio Button */}
+              <TouchableOpacity 
+                style={[
+                  styles.radioButton,
+                  item.completed && styles.radioButtonCompleted
+                ]}
+                onPress={() => handleToggleHabit(item.id)}
+              >
+                {item.completed && <View style={styles.radioButtonInner} />}
+              </TouchableOpacity>
+
+              {/* Informações do Hábito */}
               <View style={styles.habitInfo}>
-                <Text style={styles.habitTitle}>{item.title}</Text>
+                <Text 
+                  style={[
+                    styles.habitTitle,
+                    item.completed && styles.habitTitleCompleted
+                  ]}
+                >
+                  {item.title}
+                </Text>
                 <Text style={styles.habitId}>ID: {item.id}</Text>
               </View>
-              <TouchableOpacity 
-                style={styles.deleteIcon}
-                onPress={() => handleDeleteHabit(item.id)}
-              >
-                <Text style={styles.deleteIconText}>🗑️</Text>
-              </TouchableOpacity>
-            </View>
+
+              {/* Ações (Editar/Excluir) */}
+              <View style={styles.habitActions}>
+                <TouchableOpacity 
+                  style={[
+                    styles.editIcon,
+                    item.completed && styles.actionIconDisabled
+                  ]}
+                  onPress={() => !item.completed && handleEditHabit(item.id)}
+                  disabled={item.completed}
+                >
+                  <Text style={styles.editIconText}>✏️</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[
+                    styles.deleteIcon,
+                    item.completed && styles.actionIconDisabled
+                  ]}
+                  onPress={() => !item.completed && handleDeleteHabit(item.id)}
+                  disabled={item.completed}
+                >
+                  <Text style={styles.deleteIconText}>🗑️</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
           )}
           style={styles.list}
           contentContainerStyle={styles.listContent}
         /> 
       )}
 
+      {/* Modal para Adicionar */}
       <Modal
         isVisible={isModalVisible}
-        onBackdropPress={() => setIsModalVisible(false)}
+        onBackdropPress={closeAddModal}
       >
         <View style={styles.modalContainer}>
           <Text style={styles.modalTitle}>Novo Hábito</Text>
@@ -304,13 +334,46 @@ export default function HomeScreen() {
           <View style={styles.modalButtons}>
             <Button
               title="Cancelar"
-              onPress={() => setIsModalVisible(false)}
+              onPress={closeAddModal}
+              color="#F44336"
+            />
+            <View style={styles.buttonSpacer} />
+            <Button
+              title="Adicionar"
+              onPress={handleAddHabit}
+              disabled={!habitName.trim()}
+              color="#4CAF50"
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal para Editar */}
+      <Modal
+        isVisible={isModalEditVisible}
+        onBackdropPress={closeEditModal}
+      >
+        <View style={styles.modalContainer}>
+          <Text style={styles.modalTitle}>Editar Hábito</Text>
+          
+          <TextInput
+            style={styles.input}
+            placeholder="Digite o nome do hábito"
+            value={habitName}
+            onChangeText={setHabitName}
+            autoFocus
+          />
+
+          <View style={styles.modalButtons}>
+            <Button
+              title="Cancelar"
+              onPress={closeEditModal}
               color="#F44336"
             />
             <View style={styles.buttonSpacer} />
             <Button
               title="Salvar"
-              onPress={handleAddHabit}
+              onPress={handleSaveEdit}
               disabled={!habitName.trim()}
               color="#4CAF50"
             />
@@ -349,43 +412,21 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
   },
+  counterContainer: {
+    alignItems: 'flex-end',
+  },
   counter: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
     backgroundColor: '#e0e0e0',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
+    marginBottom: 4,
   },
-  debugContainer: {
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  debugText: {
+  completedCounter: {
     fontSize: 12,
-    color: '#666',
-    fontFamily: 'monospace',
-    marginBottom: 10,
-  },
-  debugButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  debugButton: {
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 8,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  debugButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 14,
+    color: '#4CAF50',
   },
   emptyContainer: {
     flex: 1,
@@ -419,16 +460,45 @@ const styles = StyleSheet.create({
   habitItemContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     backgroundColor: 'white',
     padding: 15,
     borderRadius: 10,
     marginBottom: 10,
     borderWidth: 1,
     borderColor: '#e0e0e0',
+    opacity: 1, // Valor padrão
+  },
+  habitItemCompleted: {
+    opacity: 0.6, // Item fica opaco quando completado
+    backgroundColor: '#f8f8f8',
+  },
+  // Estilos do Radio Button
+  radioButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  radioButtonCompleted: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  radioButtonInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: 'white',
   },
   habitInfo: {
     flex: 1,
+  },
+  habitActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   habitTitle: {
     fontSize: 16,
@@ -436,17 +506,30 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 5,
   },
+  habitTitleCompleted: {
+    color: '#666',
+    textDecorationLine: 'line-through',
+  },
   habitId: {
     fontSize: 11,
     color: '#999',
     fontFamily: 'monospace',
   },
+  editIcon: {
+    padding: 10,
+    marginRight: 5,
+  },
+  editIconText: {
+    fontSize: 20,
+  },
   deleteIcon: {
     padding: 10,
-    marginLeft: 10,
   },
   deleteIconText: {
     fontSize: 20,
+  },
+  actionIconDisabled: {
+    opacity: 0.3,
   },
   modalContainer: {
     backgroundColor: 'white',
